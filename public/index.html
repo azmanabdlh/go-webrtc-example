@@ -1,0 +1,374 @@
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>My WebRTC example</title>
+
+    <style>
+      .container .video_cam::after {
+        content: attr(data-name);
+        display: block;
+        position: absolute;
+        background-color: rgba(0, 0, 0, 0.30);
+        border-radius: 3px;
+        padding: .5rem;
+        bottom: 10px;
+        color: white;        
+      }
+      .container .video_cam {
+        position: relative;
+        border: 1px solid rgba(51, 37, 27, 0.267);
+        border-radius: 7px;
+      }
+      .container .video_cam video {       
+        width: 100%;
+        height: 100%;
+      }
+      .container {
+        height: 100vh;
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        grid-template-rows: repeat(3, 1fr);
+        gap: 1.5rem;
+      }
+      * {
+        margin: 0;
+        padding: .5rem;
+        box-sizing: border-box;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+    </style>
+  </head>
+  <body>    
+    <div class="container"></div>
+  </body>
+
+  <script>
+    const ANSWER_SIGNAL = "ANSWER_SIGNAL";
+    const OFFER_SIGNAL = "OFFER_SIGNAL";    
+    const JOIN_SIGNAL = "JOIN_SIGNAL";
+    const JOINED_SIGNAL = "JOINED_SIGNAL";
+    const ICE_CANDIDATE_SIGNAL = "ICE_CANDIDATE_SIGNAL";
+
+    const NEW_PARTICIPANT_SIGNAL = "NEW_PARTICIPANT_SIGNAL";
+    const SEND_OFFER_SIGNAL = "SEND_OFFER_SIGNAL";
+    const SEND_ANSWER_SIGNAL = "SEND_ANSWER_SIGNAL";
+    const SEND_ICE_CANDIDATE_SIGNAL = "SEND_ICE_CANDIDATE_SIGNAL";
+
+    
+
+    let myStreamCam = new MediaStream();
+    
+    const containerEl = document.querySelector('.container');
+
+    let ws;
+    let yourname = "";
+    let roomID = "";
+    let myLocalPeerID = "";    
+    const myConns = new Object();
+    const myLocalColor = generateRandomColor();
+
+    window.onload = function() {      
+      main();
+
+      ws = new WebSocket('ws://localhost:8000/ws/room/' + roomID);
+
+      ws.onmessage = handleOnWsSignal;
+      ws.onclose = function() {
+        console.log("WebSocket connection closed");
+      };
+      ws.onerror = function() {
+        console.log("WebSocket connection error");
+      };
+    }
+
+    window.onclose = function () {
+      if (ws != null) {
+        ws.close();
+      }
+    }
+
+  
+    function generateRandomColor() {
+      const letters = '0123456789ABCDEF';
+      let color = '#';
+      for (let i = 0; i < 6; i++) {
+        color += letters[Math.floor(Math.random() * 16)];
+      }
+      return color;
+    }
+
+    function addCam(name, myColor, stream, container) {
+      const videoCam = document.createElement('video');
+      videoCam.autoplay = true;
+      videoCam.muted = true;
+      videoCam.srcObject = stream;
+
+      const box = document.createElement('div');
+      box.classList.add('video_cam');
+      box.setAttribute('data-name', name);
+
+      box.style.backgroundColor = myColor;
+      box.appendChild(videoCam);
+
+
+      container.appendChild(box);
+    }
+
+    function handleOnWsSignal(e) {
+      const msg = JSON.parse(e.data);
+      const payload = JSON.parse(msg.payload)
+
+      console.log("msg ==> ", msg);
+      console.log("payload => ", payload)
+
+      switch (msg.event) {         
+        case JOIN_SIGNAL:
+          console.log("JOIN_SIGNAL => ")
+          // myUniqueID = payload.uniqueID
+          let remoteConn = makeRTCPeer();
+          myConns[myLocalPeerID] = {
+            peerConn: remoteConn,
+            candidates: [],
+            userConnected: {
+              name: yourname,
+              myColor: myLocalColor,
+            }
+          };
+
+          const remoteStream = new MediaStream();
+
+          remoteConn.ontrack = function(evt) {
+            evt.streams[0].getTracks().forEach(track => remoteStream.addTrack(track))
+          }
+
+          remoteConn.onicecandidate = evt => {
+            if (evt.candidate) {
+              const candidate = JSON.stringify(
+                evt.candidate.toJSON()
+              );
+
+              if (myConns[myLocalPeerID].candidates.length == 0) {
+                myConns[myLocalPeerID].candidates = [];
+              }
+                            
+              myConns[myLocalPeerID].candidates.push(candidate);
+            }
+          }
+
+          myStreamCam.getTracks().forEach(track => remoteConn.addTrack(track, myStreamCam));
+          
+          remoteConn.createOffer()
+            .then(offer => Promise.all([
+              Promise.resolve(offer),
+              remoteConn.setLocalDescription(offer),
+            ]))
+            .then((resolver) => {
+              const [offer, _] = resolver;
+
+              console.log("create offer => ", offer);
+              console.log("join => ", payload.userConnected.name)
+
+              console.log(
+                "offer send signal =>", {
+                  originID: myLocalPeerID,
+                  destID: payload.destID,
+                }
+              )
+
+              ws.send(JSON.stringify({
+                event: SEND_OFFER_SIGNAL,
+                payload: JSON.stringify({
+                    type: "offer",
+                    sdp: btoa(JSON.stringify(offer)),
+                    // sourcePeerID: payload.uniqueID, // local peer uniqueID
+                    originID: myLocalPeerID,
+                    destID: payload.destID,
+                    userConnected: {
+                      name: yourname, // my local name
+                      myColor: myLocalColor,
+                    }
+                  })
+              }));
+            }).catch(err => console.error("error offer ", err));  
+
+            addCam(payload.userConnected.name, payload.userConnected.myColor, remoteStream, containerEl);
+          break;        
+          console.log("answer signal");
+          break;
+        case OFFER_SIGNAL:
+          let myPeerConn = makeRTCPeer();
+          console.log("OFFER_SIGNAL ==>")
+          console.log(
+                "offer send answer =>", {
+                  originID: payload.originID,
+                  destID: payload.destID,                  
+                }
+              )
+          myStreamCam.getTracks().forEach(track => myPeerConn.addTrack(track, myStreamCam));
+
+          const remoteStream2 = new MediaStream();
+
+          myPeerConn.ontrack = function(evt) {
+            evt.streams[0].getTracks().forEach(track => remoteStream2.addTrack(track))
+          }
+
+          myPeerConn.onicecandidate = evt => {            
+            if (evt.candidate) {
+              const candidate = JSON.stringify(
+                evt.candidate.toJSON()
+              );
+              ws.send(JSON.stringify({
+                event: SEND_ICE_CANDIDATE_SIGNAL,
+                payload: JSON.stringify({
+                  candidate: candidate,
+                  originID: myLocalPeerID,
+                  destID: payload.originID,
+                })
+              }));
+              // myPeerConn.addIceCandidate(evt.candidate.toJSON()) 
+            }
+          }
+
+          const myColor = generateRandomColor();
+          
+          const sdp = JSON.parse(atob(payload.sdp));
+
+          myPeerConn.setRemoteDescription(
+            new RTCSessionDescription(sdp)
+          ).then(_ => myPeerConn.createAnswer())
+          .then(answer => myPeerConn.setLocalDescription(answer))
+          .then(_ => {
+            console.log("create answer => ", myPeerConn.localDescription);
+            // send answer
+            ws.send(JSON.stringify({
+              event: SEND_ANSWER_SIGNAL,
+              payload: JSON.stringify({
+                type: "answer",
+                sdp: btoa(JSON.stringify(myPeerConn.localDescription)),
+                originID: myLocalPeerID,
+                destID: payload.originID,
+                userConnected: {
+                  name: payload.userConnected.name,
+                  myColor: payload.userConnected.myColor,
+                }
+              })
+            }));
+          })
+
+          console.log("myConns[payload.destID] => ", myConns[payload.destID])
+          myConns[payload.destID] = {
+            peerConn: myPeerConn,            
+            candidates: [],
+            userConnected: {
+              name: payload.userConnected.name,
+              myColor: payload.userConnected.myColor,
+            }
+          };
+
+          addCam(payload.userConnected.name, payload.userConnected.myColor, remoteStream2, containerEl);
+          console.log("send offer signal");          
+          break;
+        case ANSWER_SIGNAL:
+          console.log("answer signal");
+          
+          const answerSdp = JSON.parse(atob(payload.sdp));
+
+          console.log("answer log id => " + payload.destID + "== " + myLocalPeerID);
+          console.log("answerSdp => ", answerSdp)
+          console.log("myConns[payload.uniqueID] => ", myConns[payload.destID])
+          myConns[payload.destID].peerConn.setRemoteDescription(
+            new RTCSessionDescription(answerSdp)
+          ).then(_ => {
+            console.log("set remote description");
+
+            myConns[payload.destID].candidates.forEach(candidate => {
+
+              ws.send(JSON.stringify({
+                event: SEND_ICE_CANDIDATE_SIGNAL,
+                payload: JSON.stringify({
+                  candidate: candidate,
+                  originID: myLocalPeerID,
+                  destID: payload.originID,
+                })
+              }));
+
+              // myConns[payload.destID].peerConn.addIceCandidate(
+              //   new RTCIceCandidate(JSON.parse(candidate))
+              // );
+            });
+
+            myConns[payload.destID].candidates = [];
+          }).catch(err => console.error("error set remote description ", err));
+          break;
+        case JOINED_SIGNAL:
+          myLocalPeerID = payload.originID;          
+          break;
+        case ICE_CANDIDATE_SIGNAL:
+          console.log("ICE_CANDIDATE_SIGNAL => ", payload.candidate);
+          const candidate = JSON.parse(payload.candidate);
+          console.log("myConns[payload.originID] => ", myConns[payload.originID])
+          console.log("myConns[payload.originID] => ", myConns[payload.destID])
+          myConns[payload.destID].peerConn.addIceCandidate(
+            new RTCIceCandidate(candidate)
+          ).then(_ => {
+            console.log("add ice candidate");
+          }).catch(err => console.error("error add ice candidate ", err));
+          break;
+        default:
+          console.log("default signal");
+      }
+    }
+
+  
+    function makeRTCPeer(urls = []) {
+      if (urls.length == 0 ) {
+        urls = ['stun:stun1.l.google.com:19302', "stun:stun2.l.google.com:19302"];
+      }
+
+      const config = {
+        iceServers: [
+          {
+            urls: urls,
+          },
+        ],
+      };
+
+      return new RTCPeerConnection(config)
+    }
+
+
+    function generateRoomID() {
+      const roomID = Math.random().toString(36).substring(2, 8);
+      return roomID;
+    }
+
+    function main() {      
+      yourname = prompt("Enter your name", "dian");
+      roomID = prompt("Enter room ID", generateRoomID());
+
+      navigator.mediaDevices.getUserMedia({video: true, audio: true})
+        .then(stream => {          
+          addCam(yourname, myLocalColor, stream, containerEl);
+          myStreamCam = stream;
+
+           // send to socket
+          ws.send(JSON.stringify({
+            event: NEW_PARTICIPANT_SIGNAL,
+            payload: JSON.stringify({
+              name: yourname.trim(),
+              myColor: myLocalColor,
+              roomID: roomID.trim()
+            })
+          }));
+        }).catch(err => {
+          console.error("error getUserMedia ", err)
+          ws.close();
+        });
+    }
+
+
+ 
+    
+  </script>
+</html>

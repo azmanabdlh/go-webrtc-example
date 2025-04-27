@@ -1,0 +1,8 @@
+vendor/
+DS_Store/
+.idea/
+*.iml
+*.log
+*.swp
+*.swo
+*.sublime-project
