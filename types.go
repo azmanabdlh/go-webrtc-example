@@ -33,6 +33,9 @@ type Room struct {
 type SessionManager struct {
 	room *Room
 	db   *database
+
+	myPeerID string
+	tx       sync.Mutex
 }
 
 type Peer struct {

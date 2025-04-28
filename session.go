@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -23,7 +24,7 @@ func generateRandHash(length int) string {
 }
 
 func newSession(db *database, room *Room) *SessionManager {
-	return &SessionManager{room, db}
+	return &SessionManager{room, db, "", sync.Mutex{}}
 }
 
 func (sm *SessionManager) Listen(conn *websocket.Conn, msg Message) error {
@@ -31,6 +32,7 @@ func (sm *SessionManager) Listen(conn *websocket.Conn, msg Message) error {
 	switch msg.Event {
 	case NEW_PARTICIPANT_SIGNAL:
 		myPeerID := generateRandHash(8) // my uniqueID
+		sm.myPeerID = myPeerID
 		payload := struct {
 			Name    string `json:"name"`
 			RoomID  string `json:"roomID"`
@@ -54,6 +56,10 @@ func (sm *SessionManager) Listen(conn *websocket.Conn, msg Message) error {
 			return err
 		}
 
+		sm.tx.Lock()
+		sm.room.Peers[myPeerID] = myPeer
+		sm.tx.Unlock()
+
 		sm.room.Join(myPeer)
 
 	case SEND_ICE_CANDIDATE_SIGNAL:
@@ -66,6 +72,9 @@ func (sm *SessionManager) Listen(conn *websocket.Conn, msg Message) error {
 			sm.room.RoomID,
 		)
 
+		log.Println("room.Peers => ")
+		log.Println(room.Peers)
+
 		if myPeer, ok := room.Peers[payload.DestID]; ok {
 			err := myPeer.Conn.WriteJSON(&Message{
 				Event:   ICE_CANDIDATE_SIGNAL,
@@ -74,9 +83,11 @@ func (sm *SessionManager) Listen(conn *websocket.Conn, msg Message) error {
 			if err != nil {
 				return err
 			}
+
+			return nil
 		}
 
-		return fmt.Errorf("peerID %s not found for roomID %s", payload.DestID, room.RoomID)
+		return fmt.Errorf("peerID %s not SEND_ICE_CANDIDATE_SIGNAL found for roomID %s", payload.DestID, room.RoomID)
 
 	case SEND_ANSWER_SIGNAL:
 		fallthrough
@@ -86,7 +97,7 @@ func (sm *SessionManager) Listen(conn *websocket.Conn, msg Message) error {
 			return err
 		}
 
-		destID := payload.DestID
+		peerID := payload.DestID
 
 		room := db.Find(
 			sm.room.RoomID,
@@ -101,7 +112,7 @@ func (sm *SessionManager) Listen(conn *websocket.Conn, msg Message) error {
 
 		payloadStr, _ := json.Marshal(payload)
 
-		if myPeer, ok := room.Peers[destID]; ok {
+		if myPeer, ok := room.Peers[peerID]; ok {
 			if err := myPeer.Conn.WriteJSON(&Message{
 				Event:   signal,
 				Payload: string(payloadStr),
@@ -112,8 +123,20 @@ func (sm *SessionManager) Listen(conn *websocket.Conn, msg Message) error {
 			return nil
 		}
 
-		return fmt.Errorf("peerID %s not found for roomID %s", destID, room.RoomID)
+		return fmt.Errorf("peerID %s not found for roomID %s", peerID, room.RoomID)
 
 	}
 	return nil
+}
+
+func (sm *SessionManager) Close() {
+	myPeer := sm.room.Peers[sm.myPeerID]
+	if err := sm.room.Leave(myPeer); err != nil {
+		log.Println("Error leaving room:", err)
+		return
+	}
+
+	sm.tx.Lock()
+	delete(sm.room.Peers, sm.myPeerID)
+	sm.tx.Unlock()
 }

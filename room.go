@@ -14,14 +14,13 @@ func newRoom(roomID string) *Room {
 	}
 }
 
-func (room *Room) Join(myPeer *Peer) {
+func (room *Room) Join(myPeer *Peer) error {
 
 	log.Printf(
 		"%s join to room %s & peerID %s => \n", myPeer.Name, room.RoomID, myPeer.PeerID,
 	)
 
 	myPeerID := myPeer.PeerID
-	room.Peers[myPeerID] = myPeer
 
 	log.Println(
 		"rooms peers => ", len(room.Peers),
@@ -35,13 +34,13 @@ func (room *Room) Join(myPeer *Peer) {
 		},
 	})
 
-	broadcast(room, myPeerID, Signal{
+	return broadcast(room, myPeerID, Signal{
 		Event:   JOIN_SIGNAL,
 		Payload: string(payload),
 	})
 }
 
-func (room *Room) Leave(myPeer *Peer) {
+func (room *Room) Leave(myPeer *Peer) error {
 
 	log.Printf(
 		"%s leave to room %s => \n", myPeer.Name, room.RoomID,
@@ -55,13 +54,13 @@ func (room *Room) Leave(myPeer *Peer) {
 		},
 	})
 
-	broadcast(room, myPeer.PeerID, Signal{
+	return broadcast(room, myPeer.PeerID, Signal{
 		Event:   LEAVE_SIGNAL,
 		Payload: string(payload),
 	})
 }
 
-func (room *Room) Close(myPeer *Peer) {
+func (room *Room) Close(myPeer *Peer) error {
 
 	log.Printf(
 		"%s close to room %s & peerID %s => \n", myPeer.Name, room.RoomID, myPeer.PeerID,
@@ -75,23 +74,25 @@ func (room *Room) Close(myPeer *Peer) {
 		},
 	})
 
-	broadcast(room, myPeer.PeerID, Signal{
+	return broadcast(room, myPeer.PeerID, Signal{
 		Event:   CLOSE_SIGNAL,
 		Payload: string(payload),
 	})
 }
 
-func broadcast(room *Room, myPeerID string, signal Signal) {
+func broadcast(room *Room, myPeerID string, signal Signal) (err error) {
 	for id, peer := range room.Peers {
 		if id == myPeerID {
 			continue
 		}
 
-		if err := peer.Conn.WriteJSON(&signal); err != nil {
+		if err = peer.Conn.WriteJSON(&signal); err != nil {
 			log.Printf("failed to send signal. err: %v ", err)
 			break
 		}
 	}
+
+	return
 }
 
 func newPeer(

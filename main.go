@@ -28,6 +28,9 @@ func main() {
 	r := mux.NewRouter()
 
 	r.Handle("/", http.FileServer(http.Dir("./public")))
+
+	r.PathPrefix("/script.js").Handler(http.FileServer(http.Dir("./public")))
+
 	r.HandleFunc("/ws/room/{room_id}", handle)
 
 	log.Println("Server started at http://localhost:8000")
@@ -63,6 +66,12 @@ func handle(w http.ResponseWriter, r *http.Request) {
 	log.Println("Client connected:", conn.RemoteAddr())
 	for {
 		_, rawMsg, err := conn.ReadMessage()
+		// send signal when client disconnected
+		if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+			mySession.Close()
+			break
+		}
+
 		if err != nil {
 			log.Println("Error reading message:", err)
 			break
