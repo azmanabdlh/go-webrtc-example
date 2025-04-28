@@ -26,7 +26,7 @@ The main goal is to understand signaling concepts, relay, and implement a simple
 4. **Try opening from another tab/browser** to simulate multi-user
 
 ### Example:
-  1. User A join the room
+  1. **User A join the room**
   - Enters name & room ID.
   - A send signal `NEW_PARTICIPANT_SIGNAL` to the websocket server
   - websocket server no relay yet (no other peers).
@@ -58,12 +58,12 @@ The main goal is to understand signaling concepts, relay, and implement a simple
   ```
 
   5. **websocket server relay the offer signal `OFFER_SIGNAL` to User B**
-  - User B create a WebRTC connection for User B using User A data
+  - User B create a WebRTC connection for User A using User A data
   - User B add remote video User A to DOM
   - User B send answer signal `SEND_ANSWER_SIGNAL` to User A
 
   5. **websocket server relay the answer signal `ANSWER_SIGNAL` to User A**
-  5.1 User A got answer and exchange ICE candidates connection
+  - User A got answer and exchange ICE candidates connection
 
   6. done
 
