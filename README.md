@@ -9,6 +9,7 @@ The main goal is to understand signaling concepts, relay, and implement a simple
 
 - Signaling server with Go (WebSocket)
 - Simple room & peer management
+- Simple chat
 - Video relay between browsers (SFU-lite)
 - Easy-to-understand HTML/JS client code
 

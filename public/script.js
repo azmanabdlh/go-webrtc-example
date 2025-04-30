@@ -14,14 +14,53 @@ const SEND_ICE_CANDIDATE_SIGNAL = "SEND_ICE_CANDIDATE_SIGNAL";
 
 let myStreamCam = new MediaStream();
 
-const containerEl = document.querySelector('.container');
+const containerEl = document.querySelector('.container .main');
+const form = document.querySelector('.chat_window__writer form');
+
+const chatWindowBtn = document.querySelector('.chat_window__btn button');
+const chatWindow = document.querySelector('.chat_window');
+const chatBox = document.querySelector('.chat_window__chatbox');
+
 
 let ws;
+let streamChannel;
 let yourname = "";
 let roomID = "";
 let myLocalPeerID = "";    
 const myConns = new Object();
 const myLocalColor = generateRandomColor();
+
+
+chatWindowBtn.addEventListener('click', function(e) {
+  let btnText = "Close chat";
+
+  e.target.parentElement.classList.toggle("active");  
+  chatWindow.classList.toggle("active");
+
+  if (chatWindow.classList.contains("active")) {
+  	btnText = "Close chat";
+  } else {
+  	btnText = "Open chat";
+  }
+
+  e.target.innerText = btnText;
+});
+
+form.addEventListener('submit', function(e) {
+  e.preventDefault();
+
+  const message = e.target.elements[0].value;
+  
+  let data = {
+    name: yourname,
+    message: message,
+    color: myLocalColor,
+  }
+
+  form.reset();
+  streamChannel.send(JSON.stringify(data));
+  addChatMessage(chatBox, data);
+});
 
 window.onload = function() {
   main();
@@ -51,6 +90,39 @@ function generateRandomColor() {
     color += letters[Math.floor(Math.random() * 16)];
   }
   return color;
+}
+
+
+function addChatMessage(container, object) {
+  const chatEl1 = document.createElement('ul');
+  const chatEl2 = document.createElement('li');
+
+  const chatNameEl = document.createElement('p');
+  const chatMessageEl = document.createElement('p');
+
+  const date = new Date();
+  
+  // human date only show time
+  const humanDate = date.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',    
+  });
+
+  chatNameEl.classList.add('chatbox__user_name');
+  chatMessageEl.classList.add('chatbox__user_message');
+
+  chatNameEl.style.color = object.color;
+  chatNameEl.innerText = object.name + " - Pukul " + humanDate;
+  chatMessageEl.innerText = object.message;
+
+
+  chatEl2.appendChild(chatNameEl);
+  chatEl2.appendChild(chatMessageEl);
+
+  chatEl1.appendChild(chatEl2)
+  container.appendChild(
+   chatEl1
+  );
 }
 
 function addCam(myID, name, myColor, stream, container) {
@@ -132,6 +204,15 @@ function handleOnWsSignal(e) {
       remoteConn.ontrack = function(evt) {
         evt.streams[0].getTracks().forEach(track => remoteStream.addTrack(track))
       }
+      
+      streamChannel = remoteConn.createDataChannel("chat");
+      streamChannel.onopen = () => console.log("DataChannel opened!");
+      streamChannel.onmessage = function(evt) {
+        const data = JSON.parse(evt.data);
+        addChatMessage(chatBox, data);
+        console.log("message from data channel 2: ", evt.data);
+      }
+      streamChannel.onerror = e => console.error("Channel error 2:", e);
 
       remoteConn.onicecandidate = evt => {
         if (evt.candidate) {
@@ -157,16 +238,6 @@ function handleOnWsSignal(e) {
         .then((resolver) => {
           const [offer, _] = resolver;
 
-          console.log("create offer => ", offer);
-          console.log("join => ", payload.userConnected.name)
-
-          console.log(
-            "offer send signal =>", {
-              originID: myLocalPeerID,
-              destID: payload.destID,
-            }
-          )
-
           ws.send(JSON.stringify({
             event: SEND_OFFER_SIGNAL,
             payload: JSON.stringify({
@@ -183,14 +254,22 @@ function handleOnWsSignal(e) {
         }).catch(err => console.error("error offer ", err));  
 
         addCam(payload.destID, payload.userConnected.name, payload.userConnected.myColor, remoteStream, containerEl);
-      break;        
-      console.log("answer signal");
       break;
     case OFFER_SIGNAL:
       let myPeerConn = makeRTCPeer();          
       myStreamCam.getTracks().forEach(track => myPeerConn.addTrack(track, myStreamCam));
 
       const remoteStream2 = new MediaStream();
+      myPeerConn.ondatachannel = function(evt) {
+        streamChannel = evt.channel;
+        streamChannel.onmessage = (e) => {
+          const data = JSON.parse(e.data);
+          console.log("message from data channel 1: ", data);
+          addChatMessage(chatBox, data);
+        };
+        streamChannel.onopen = () => console.log("DataChannel opened on callee!");
+        streamChannel.onerror = e => console.error("Channel error 1:", e);
+      }
 
       myPeerConn.ontrack = function(evt) {
         evt.streams[0].getTracks().forEach(track => remoteStream2.addTrack(track))
