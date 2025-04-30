@@ -66,8 +66,8 @@ form.addEventListener('submit', function(e) {
 window.onload = function() {
   main();
 
-  const origin = window.location.origin;
-  ws = new WebSocket('ws://'+ origin +'/ws/room/' + roomID);
+  const host = window.location.host;
+  ws = new WebSocket('ws://'+ host +'/ws/room/' + roomID);
 
   ws.onmessage = handleOnWsSignal;
   ws.onclose = function() {
