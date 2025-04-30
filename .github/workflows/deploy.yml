@@ -1,0 +1,56 @@
+name: build, push and deploy to AWS EC2
+on:
+  release:
+    types: [published]
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      
+      - name: build and push docker image
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/go-webrtc-example:latest .
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/go-webrtc-example:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: verify ssh EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Successfully connected to EC2 instance"
+            docker --version || echo "Docker not installed"
+      - name: deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/go-webrtc-example:latest
+            docker stop myapp || true
+            docker rm myapp || true
+            docker run -d  \
+              --name myapp \
+              -p 8000:8000 \
+              -e NODE_ENV=production \
+              ${{ secrets.DOCKERHUB_USERNAME }}/go-webrtc-example:latest
+            
+            docker image prune -f
