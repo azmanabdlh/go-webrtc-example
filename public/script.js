@@ -31,6 +31,7 @@ const myConns = new Object();
 const myLocalColor = generateRandomColor();
 
 
+
 chatWindowBtn.addEventListener('click', function(e) {
   let btnText = "Close chat";
 
@@ -65,7 +66,8 @@ form.addEventListener('submit', function(e) {
 window.onload = function() {
   main();
 
-  ws = new WebSocket('ws://localhost:8000/ws/room/' + roomID);
+  const origin = window.location.origin;
+  ws = new WebSocket('ws://'+ origin +'/ws/room/' + roomID);
 
   ws.onmessage = handleOnWsSignal;
   ws.onclose = function() {
