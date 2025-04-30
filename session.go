@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -24,7 +23,7 @@ func generateRandHash(length int) string {
 }
 
 func newSession(db *database, room *Room) *SessionManager {
-	return &SessionManager{room, db, "", sync.Mutex{}}
+	return &SessionManager{room, db, ""}
 }
 
 func (sm *SessionManager) Listen(conn *websocket.Conn, msg Message) error {
@@ -56,9 +55,7 @@ func (sm *SessionManager) Listen(conn *websocket.Conn, msg Message) error {
 			return err
 		}
 
-		sm.tx.Lock()
-		sm.room.Peers[myPeerID] = myPeer
-		sm.tx.Unlock()
+		sm.room.Peers.Store(myPeerID, myPeer)
 
 		sm.room.Join(myPeer)
 
@@ -72,10 +69,8 @@ func (sm *SessionManager) Listen(conn *websocket.Conn, msg Message) error {
 			sm.room.RoomID,
 		)
 
-		log.Println("room.Peers => ")
-		log.Println(room.Peers)
-
-		if myPeer, ok := room.Peers[payload.DestID]; ok {
+		if ref, ok := room.Peers.Load(payload.DestID); ok && ref != nil {
+			myPeer := ref.(*Peer)
 			err := myPeer.Conn.WriteJSON(&Message{
 				Event:   ICE_CANDIDATE_SIGNAL,
 				Payload: msg.Payload,
@@ -108,11 +103,10 @@ func (sm *SessionManager) Listen(conn *websocket.Conn, msg Message) error {
 			signal = ANSWER_SIGNAL
 		}
 
-		log.Println("payload.UserConnected => ", payload.UserConnected)
-
 		payloadStr, _ := json.Marshal(payload)
 
-		if myPeer, ok := room.Peers[peerID]; ok {
+		if ref, ok := room.Peers.Load(peerID); ok && ref != nil {
+			myPeer := ref.(*Peer)
 			if err := myPeer.Conn.WriteJSON(&Message{
 				Event:   signal,
 				Payload: string(payloadStr),
@@ -130,13 +124,16 @@ func (sm *SessionManager) Listen(conn *websocket.Conn, msg Message) error {
 }
 
 func (sm *SessionManager) Close() {
-	myPeer := sm.room.Peers[sm.myPeerID]
-	if err := sm.room.Leave(myPeer); err != nil {
-		log.Println("Error leaving room:", err)
-		return
-	}
+	key := sm.myPeerID
 
-	sm.tx.Lock()
-	delete(sm.room.Peers, sm.myPeerID)
-	sm.tx.Unlock()
+	if ref, ok := sm.room.Peers.Load(key); ok && ref != nil {
+		myPeer := ref.(*Peer)
+		err := sm.room.Leave(myPeer)
+		if err != nil {
+			log.Printf("Error leaving room %s, peer %s:\n", err, myPeer.PeerID)
+			return
+		}
+
+		sm.room.Peers.Delete(key)
+	}
 }

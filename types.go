@@ -24,10 +24,10 @@ const (
 
 type Room struct {
 	RoomID string
-	Peers  map[string]*Peer
+	// Peers  map[string]*Peer
 
 	// for safe using lock
-	// Peers sync.Map
+	Peers sync.Map
 }
 
 type SessionManager struct {
@@ -35,7 +35,6 @@ type SessionManager struct {
 	db   *database
 
 	myPeerID string
-	tx       sync.Mutex
 }
 
 type Peer struct {
@@ -44,6 +43,8 @@ type Peer struct {
 	Conn    *websocket.Conn
 	Name    string
 	MyColor string // my video background color
+
+	mu sync.Mutex
 }
 
 type UserConnected struct {

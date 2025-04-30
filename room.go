@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"sync"
 
 	"github.com/gorilla/websocket"
 )
@@ -10,7 +11,7 @@ import (
 func newRoom(roomID string) *Room {
 	return &Room{
 		RoomID: roomID,
-		Peers:  make(map[string]*Peer),
+		Peers:  sync.Map{},
 	}
 }
 
@@ -21,10 +22,6 @@ func (room *Room) Join(myPeer *Peer) error {
 	)
 
 	myPeerID := myPeer.PeerID
-
-	log.Println(
-		"rooms peers => ", len(room.Peers),
-	)
 
 	payload, _ := json.Marshal(Payload{
 		DestID: myPeerID,
@@ -81,16 +78,19 @@ func (room *Room) Close(myPeer *Peer) error {
 }
 
 func broadcast(room *Room, myPeerID string, signal Signal) (err error) {
-	for id, peer := range room.Peers {
-		if id == myPeerID {
-			continue
+	room.Peers.Range(func(key, ref interface{}) bool {
+		id := key.(string)
+
+		if id != myPeerID && ref != nil {
+			peer := ref.(*Peer)
+			if err = peer.SafeWriteJSON(&signal); err != nil {
+				log.Printf("failed to send signal. err: %v ", err)
+				return false
+			}
 		}
 
-		if err = peer.Conn.WriteJSON(&signal); err != nil {
-			log.Printf("failed to send signal. err: %v ", err)
-			break
-		}
-	}
+		return true
+	})
 
 	return
 }
@@ -104,4 +104,14 @@ func newPeer(
 		Name:    name,
 		MyColor: myColor,
 	}
+}
+
+func (p *Peer) SafeWriteJSON(v interface{}) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if err := p.Conn.WriteJSON(v); err != nil {
+		return err
+	}
+
+	return nil
 }
