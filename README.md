@@ -65,7 +65,7 @@ The main goal is to understand signaling concepts, relay, and implement a simple
   6. **websocket server relay the answer signal `ANSWER_SIGNAL` to User A**
   - User A got answer and exchange ICE candidates connection
 
-  6. done
+  7. done
 
 ---
 
