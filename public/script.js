@@ -67,7 +67,7 @@ window.onload = function() {
   main();
 
   const host = window.location.host;
-  ws = new WebSocket('ws://'+ host +'/ws/room/' + roomID);
+  ws = new WebSocket('wss://'+ host +'/ws/room/' + roomID);
 
   ws.onmessage = handleOnWsSignal;
   ws.onclose = function() {
