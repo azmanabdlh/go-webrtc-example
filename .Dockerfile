@@ -10,5 +10,5 @@ WORKDIR /myapp
 
 COPY --from=builder /myapp/build .
 
-EXPOSE 80
+EXPOSE 8000
 CMD ["./build"]
