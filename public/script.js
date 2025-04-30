@@ -23,7 +23,7 @@ let myLocalPeerID = "";
 const myConns = new Object();
 const myLocalColor = generateRandomColor();
 
-document.addEventListener('DOMContentLoaded', function() {
+window.onload = function() {
   main();
 
   ws = new WebSocket('ws://localhost:8000/ws/room/' + roomID);
@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', function() {
   ws.onerror = function() {
     console.log("WebSocket connection error");
   };
-});
+};
 
 window.onclose = function () {
   if (ws != null) {
