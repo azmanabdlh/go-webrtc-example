@@ -9,6 +9,7 @@ FROM alpine:latest
 WORKDIR /myapp
 
 COPY --from=builder /myapp/build .
+COPY --from=builder /myapp/public public
 
 EXPOSE 8000
 CMD ["./build"]
