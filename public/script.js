@@ -64,7 +64,7 @@ form.addEventListener('submit', function(e) {
 });
 
 window.onload = function() {
-
+  
   const host = window.location.host;
   const protocol = window.location.protocol;
   let wsProtocol = "ws";
@@ -73,9 +73,18 @@ window.onload = function() {
     wsProtocol = "wss";
   }
 
-  ws = new WebSocket(wsProtocol + '://'+ host +'/ws/room/' + roomID);
 
-  ws.onopen = main;
+  yourname = prompt("Enter your name", "dian");
+  roomID = prompt("Enter room ID", generateRoomID());
+
+  ws = new WebSocket(wsProtocol + '://'+ host +'/ws/room/' + roomID);
+  ws.onopen = function() {
+    const loader = document.querySelector('.loader');
+    loader.style.opacity = 0;
+    loader.style.zIndex = -100;
+
+    main()
+  }
   ws.onmessage = handleOnMessage;
   ws.onclose = function() {
     console.log("WebSocket connection closed");
@@ -403,9 +412,6 @@ function generateRoomID() {
 }
 
 function main() {      
-  yourname = prompt("Enter your name", "dian");
-  roomID = prompt("Enter room ID", generateRoomID());
-
   navigator.mediaDevices.getUserMedia({video: true, audio: true})
     .then(stream => {          
       addCam("my-local", yourname, myLocalColor, stream, containerEl);

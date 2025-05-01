@@ -140,13 +140,28 @@
         border: 1px solid gray;
         cursor: pointer;
       }
+
+      .loader {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+        background-color: rgba(255, 255, 255, 0.873);
+        transition: all 300ms ease;
+      }
     </style>
   </head>
-  <body>    
+  <body>
+    <div class="loader">
+      <p>Tunggu sebentar...</p>
+    </div>
     <div class="container">
-      <div class="main">
-        
-      </div>
+      <div class="main"></div>
       <div class="sidebar">
         <div class="chat_window__btn">
           <button type="button">Open Chat</button>
