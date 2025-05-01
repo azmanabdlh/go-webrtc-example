@@ -69,14 +69,14 @@ window.onload = function() {
   const protocol = window.location.protocol;
   let wsProtocol = "ws";
 
-  if (protocol == "https") {
+  if (protocol == "https:") {
     wsProtocol = "wss";
   }
 
   ws = new WebSocket(wsProtocol + '://'+ host +'/ws/room/' + roomID);
 
   ws.onopen = main;
-  ws.onmessage = handleOnWsSignal;
+  ws.onmessage = handleOnMessage;
   ws.onclose = function() {
     console.log("WebSocket connection closed");
   };
@@ -190,7 +190,7 @@ function removeCam(myID, container) {
   }
 }
 
-function handleOnWsSignal(e) {
+function handleOnMessage(e) {
   const msg = JSON.parse(e.data);
   const payload = JSON.parse(msg.payload)
 
@@ -379,7 +379,6 @@ function handleOnWsSignal(e) {
       break;
   }
 }
-
 
 function makeRTCPeer(urls = []) {
   if (urls.length == 0 ) {
