@@ -1,0 +1,23 @@
+{
+  "name": "go-webrtc-example",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:azmanabdlh/go-webrtc-example.git",
+  "author": "azman",
+  "license": "MIT",
+  "devDependencies": {
+    "@babel/core": "^7.27.1",
+    "@babel/preset-env": "^7.27.1",
+    "babel-polyfill": "^6.26.0",
+    "gulp": "^5.0.0",
+    "gulp-babel": "^8.0.0",
+    "gulp-clean": "^0.4.0",
+    "gulp-concat": "^2.6.1",
+    "gulp-hash-filename": "^4.1.0",
+    "gulp-inject": "^5.0.5",
+    "gulp-uglify": "^3.0.2"
+  },
+  "scripts": {
+    "bundle": "./node_modules/gulp/bin/gulp.js"
+  }
+}

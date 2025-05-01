@@ -8,3 +8,4 @@ DS_Store/
 *.sublime-project
 
 build
+node_modules/

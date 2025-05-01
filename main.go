@@ -27,9 +27,8 @@ func main() {
 
 	r := mux.NewRouter()
 
+	r.PathPrefix(`/bundle{\.[a-z0-9]+\.min\.js$}`).Handler(http.FileServer(http.Dir("./public")))
 	r.Handle("/", http.FileServer(http.Dir("./public")))
-
-	r.PathPrefix("/script.js").Handler(http.FileServer(http.Dir("./public")))
 
 	r.HandleFunc("/ws/room/{room_id}", handle)
 
