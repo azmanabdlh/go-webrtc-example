@@ -64,11 +64,18 @@ form.addEventListener('submit', function(e) {
 });
 
 window.onload = function() {
-  main();
 
   const host = window.location.host;
-  ws = new WebSocket('wss://'+ host +'/ws/room/' + roomID);
+  const protocol = window.location.protocol;
+  let wsProtocol = "ws";
 
+  if (protocol == "https") {
+    wsProtocol = "wss";
+  }
+
+  ws = new WebSocket(wsProtocol + '://'+ host +'/ws/room/' + roomID);
+
+  ws.onopen = main;
   ws.onmessage = handleOnWsSignal;
   ws.onclose = function() {
     console.log("WebSocket connection closed");
